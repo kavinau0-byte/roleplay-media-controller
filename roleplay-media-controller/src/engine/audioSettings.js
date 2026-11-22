@@ -8,10 +8,13 @@ export const DEFAULT_AUDIO_SETTINGS = Object.freeze({
   video: 1,
   controllerAudio: true,
   outputAudio: true,
+  controllerSinkId: 'default', // audio output device for this (controller) window
+  outputSinkId: 'default', // audio output device for the output window (music, sfx and video sound)
 })
 
 const VOLUME_KEYS = ['master', 'music', 'sfx', 'video']
 const FLAG_KEYS = ['controllerAudio', 'outputAudio']
+const SINK_KEYS = ['controllerSinkId', 'outputSinkId']
 
 function clamp01(v, fallback) {
   const n = Number(v)
@@ -24,6 +27,7 @@ export function normalizeAudioSettings(raw) {
   const out = { ...DEFAULT_AUDIO_SETTINGS }
   for (const k of VOLUME_KEYS) out[k] = clamp01(src[k], DEFAULT_AUDIO_SETTINGS[k])
   for (const k of FLAG_KEYS) out[k] = typeof src[k] === 'boolean' ? src[k] : DEFAULT_AUDIO_SETTINGS[k]
+  for (const k of SINK_KEYS) out[k] = typeof src[k] === 'string' && src[k].trim() ? src[k] : 'default'
   return out
 }
 

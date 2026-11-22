@@ -11,17 +11,9 @@ import useKeyboard from './hooks/useKeyboard.js'
 import useMappings from './hooks/useMappings.js'
 import useOutputStatus from './hooks/useOutputStatus.js'
 import usePlayback from './hooks/usePlayback.js'
+import useToast from './hooks/useToast.js'
 
-function openOutput() {
-  const win = window.open(
-    `${location.origin}${location.pathname}#output`,
-    'roleplay-output',
-    'width=960,height=540',
-  )
-  if (!win) {
-    alert('The output window was blocked by the browser. Please allow popups for this site and try again.')
-  }
-}
+const POPUP_BLOCKED = 'The browser blocked the output window. Allow pop-ups for localhost in the address bar, then try again.'
 
 function Placeholder({ title }) {
   return <h1 className="text-xl font-semibold text-neutral-100">{title} (coming in a later phase)</h1>
@@ -32,7 +24,8 @@ export default function App() {
   const connected = useOutputStatus()
   const library = useAssets()
   const keyboard = useMappings()
-  const { audio } = usePlayback(library.assets, keyboard.mappings)
+  const toast = useToast()
+  const { audio } = usePlayback(library.assets, keyboard.mappings, connected)
   const audioSettings = useAudioSettings(audio)
   const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets, { outputConnected: connected, audio })
   const current = PAGES.find((p) => p.id === page)
@@ -45,12 +38,30 @@ export default function App() {
     prune(library.assets.map((a) => a.id))
   }, [library.loading, library.error, library.assets, prune])
 
+  // Same window name every time, so an already-open output is reused and brought to the front.
+  const openOutput = () => {
+    const win = window.open(`${location.origin}${location.pathname}#output`, 'roleplay-output', 'width=960,height=540')
+    if (!win) {
+      toast.error(POPUP_BLOCKED)
+      return
+    }
+    win.focus()
+  }
+
   const counts = { video: 0, image: 0, audio: 0 }
   for (const a of library.assets) counts[a.type] = (counts[a.type] ?? 0) + 1
 
   let content
   if (page === 'dashboard') {
-    content = <Dashboard connected={connected} counts={counts} shortcutCount={keyboard.count} onOpenOutput={openOutput} />
+    content = (
+      <Dashboard
+        connected={connected}
+        counts={counts}
+        shortcutCount={keyboard.count}
+        settings={audioSettings.settings}
+        onOpenOutput={openOutput}
+      />
+    )
   } else if (page === 'media') {
     content = <MediaLibrary {...library} keyFor={keyboard.keyFor} />
   } else if (page === 'mappings') {
@@ -63,7 +74,14 @@ export default function App() {
       />
     )
   } else if (page === 'audio') {
-    content = <AudioSettings settings={audioSettings.settings} onChange={audioSettings.update} />
+    content = (
+      <AudioSettings
+        settings={audioSettings.settings}
+        onChange={audioSettings.update}
+        audio={audio}
+        outputConnected={connected}
+      />
+    )
   } else {
     content = <Placeholder title={current?.label ?? page} />
   }

@@ -37,12 +37,14 @@ async function decodeImage(url) {
 
 // Module-level so StrictMode never creates a second engine.
 let outputAudio = null
+let statusSink = () => {} // set by the effect: sends EVENT.STATUS
 function getOutputAudio() {
   if (!outputAudio) {
     outputAudio = createAudioEngine({
       role: 'output',
       settings: loadAudioSettings(),
       onError: (message) => sendEvent(EVENT.ERROR, { message }),
+      onSinkStatus: () => statusSink(),
     })
   }
   return outputAudio
@@ -53,6 +55,7 @@ export default function OutputWindow() {
   const [imageUrl, setImageUrl] = useState(null) // base image
   const [videoVisible, setVideoVisible] = useState(false)
   const videoRef = useRef(null)
+  const activatedRef = useRef(false)
 
   useEffect(() => {
     document.title = 'Output'
@@ -62,11 +65,22 @@ export default function OutputWindow() {
     let settings = loadAudioSettings()
     let token = 0 // bumped by every display command; stale async work checks it and aborts
     let current = null // { token, assetId, seq } of the video being shown
+    let videoSinkReady = Promise.resolve()
+
+    const sendStatus = () =>
+      sendEvent(EVENT.STATUS, {
+        fullscreen: Boolean(document.fullscreenElement),
+        activated: navigator.userActivation?.hasBeenActive ?? activatedRef.current,
+        sinkError: audio.getSinkError(),
+      })
+    statusSink = sendStatus
 
     const applySettings = (next) => {
       settings = normalizeAudioSettings(next)
       audio.applySettings(settings)
       video.volume = effectiveVolume(settings, 'video')
+      // Video sound follows the output device too (no-op if it is already on it).
+      videoSinkReady = audio.routeElement(video)
     }
     applySettings(settings)
 
@@ -82,7 +96,7 @@ export default function OutputWindow() {
 
     const showVideo = async ({ assetId, seq }) => {
       const my = ++token
-      const url = await getAssetUrl(assetId)
+      const [url] = await Promise.all([getAssetUrl(assetId), videoSinkReady])
       if (my !== token) return
       if (!url) {
         hideVideo()
@@ -175,7 +189,7 @@ export default function OutputWindow() {
           audio.stopAll()
           break
         case CMD.MUSIC_START:
-          audio.musicStart(cmd.assetId)
+          audio.musicStart(cmd.assetId, cmd.position)
           break
         case CMD.MUSIC_STOP:
           audio.musicStop()
@@ -198,6 +212,12 @@ export default function OutputWindow() {
         case CMD.PRELOAD:
           preload(cmd.assets)
           break
+        case CMD.TEST_TONE:
+          audio.playTestTone()
+          break
+        case CMD.STATUS_REQUEST:
+          sendStatus()
+          break
         default:
           break
       }
@@ -208,13 +228,29 @@ export default function OutputWindow() {
       else if (msg?.type === MSG.CMD) handleCommand(msg.payload)
     })
     send(MSG.HELLO)
+    sendStatus()
 
     const onBeforeUnload = () => send(MSG.BYE)
     window.addEventListener('beforeunload', onBeforeUnload)
+    document.addEventListener('fullscreenchange', sendStatus)
+
+    const markActivated = () => {
+      if (activatedRef.current) return
+      activatedRef.current = true
+      setActivated(true)
+      sendStatus()
+    }
+
+    // A click only ever enters fullscreen; F toggles, Esc exits (browser default).
+    const onClick = () => {
+      enterFullscreen()
+      markActivated()
+    }
+    window.addEventListener('click', onClick)
 
     const onKeyDown = (event) => {
       if (event.repeat) return
-      setActivated(true)
+      markActivated()
       if (event.code === 'KeyF') {
         toggleFullscreen()
       } else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -231,21 +267,15 @@ export default function OutputWindow() {
       video.removeEventListener('ended', onEnded)
       video.removeEventListener('error', onVideoError)
       window.removeEventListener('beforeunload', onBeforeUnload)
+      document.removeEventListener('fullscreenchange', sendStatus)
+      window.removeEventListener('click', onClick)
       window.removeEventListener('keydown', onKeyDown)
+      if (statusSink === sendStatus) statusSink = () => {}
     }
   }, [])
 
-  // A click only ever enters fullscreen; F toggles, Esc exits (browser default).
-  const handleClick = () => {
-    enterFullscreen()
-    setActivated(true)
-  }
-
   return (
-    <div
-      className="fixed inset-0 bg-black cursor-none select-none overflow-hidden"
-      onClick={handleClick}
-    >
+    <div className="fixed inset-0 bg-black cursor-none select-none overflow-hidden">
       {imageUrl && (
         <img
           src={imageUrl}

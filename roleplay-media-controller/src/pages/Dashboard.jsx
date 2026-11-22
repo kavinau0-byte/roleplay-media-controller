@@ -1,12 +1,5 @@
 import StatusIndicator from '../components/StatusIndicator.jsx'
 
-const STATS = [
-  { label: 'Videos', value: 0 },
-  { label: 'Images', value: 0 },
-  { label: 'Audio files', value: 0 },
-  { label: 'Shortcuts', value: 0 },
-]
-
 const STEPS = [
   'Click "Open Output Window".',
   'Drag that window onto the projector screen.',
@@ -14,7 +7,14 @@ const STEPS = [
   'Click back on this controller window and start the show.',
 ]
 
-export default function Dashboard({ connected, onOpenOutput }) {
+export default function Dashboard({ connected, counts, onOpenOutput }) {
+  const stats = [
+    { label: 'Videos', value: counts.video },
+    { label: 'Images', value: counts.image },
+    { label: 'Audio files', value: counts.audio },
+    { label: 'Shortcuts', value: 0 }, // Phase 3
+  ]
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
@@ -23,7 +23,7 @@ export default function Dashboard({ connected, onOpenOutput }) {
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {STATS.map((stat) => (
+        {stats.map((stat) => (
           <div key={stat.label} className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4">
             <div className="text-xs uppercase tracking-wide text-neutral-500">{stat.label}</div>
             <div className="mt-1 text-2xl font-semibold text-neutral-100">{stat.value}</div>

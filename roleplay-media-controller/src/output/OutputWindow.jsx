@@ -5,8 +5,13 @@ function toggleFullscreen() {
   if (document.fullscreenElement) {
     document.exitFullscreen?.().catch(() => {})
   } else {
-    document.documentElement.requestFullscreen?.().catch(() => {})
+    enterFullscreen()
   }
+}
+
+function enterFullscreen() {
+  if (document.fullscreenElement) return
+  document.documentElement.requestFullscreen?.().catch(() => {})
 }
 
 export default function OutputWindow() {
@@ -41,8 +46,9 @@ export default function OutputWindow() {
     }
   }, [])
 
+  // A click only ever enters fullscreen; F toggles, Esc exits (browser default).
   const handleClick = () => {
-    toggleFullscreen()
+    enterFullscreen()
     setActivated(true)
   }
 

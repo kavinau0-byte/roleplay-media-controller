@@ -143,7 +143,16 @@ export default function OutputWindow() {
       setImageUrl(null)
     }
 
-    const preload = (assets) => {
+    const preload = (assets, sfxIds) => {
+      if (Array.isArray(sfxIds)) {
+        for (const id of sfxIds) {
+          try {
+            audio.warmSfx(id)
+          } catch {
+            // best effort
+          }
+        }
+      }
       if (!Array.isArray(assets)) return
       for (const a of assets) {
         if (!a || typeof a.id !== 'string') continue
@@ -210,7 +219,7 @@ export default function OutputWindow() {
           applySettings(cmd.settings)
           break
         case CMD.PRELOAD:
-          preload(cmd.assets)
+          preload(cmd.assets, cmd.sfx)
           break
         case CMD.TEST_TONE:
           audio.playTestTone()

@@ -15,7 +15,7 @@ export const CMD = Object.freeze({
   SFX_STOP: 'SFX_STOP',
   STOP_ALL: 'STOP_ALL',
   SETTINGS: 'SETTINGS', // { settings }
-  PRELOAD: 'PRELOAD', // { assets: [{ id, type }] }
+  PRELOAD: 'PRELOAD', // { assets: [{ id, type }], sfx?: [assetId] } (sfx elements are pre-warmed)
   TEST_TONE: 'TEST_TONE', // play the device test tone in the output window
   STATUS_REQUEST: 'STATUS_REQUEST', // ask the output to send EVENT.STATUS
 })

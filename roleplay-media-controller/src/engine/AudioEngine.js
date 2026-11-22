@@ -1,7 +1,9 @@
 // Audio playback for one window (pure JS, no React). Each window creates its own instance.
-// Channels: one looping music element, and one reusable element per sound effect.
+// Channels: one persistent looping music element (routed once, reused for every track),
+// and one reusable element per sound effect.
 // Every async step checks a token so a newer command always wins.
 // Every element is routed to this window's output device BEFORE its first play().
+// Music, sfx and the test tone wait this window's delay (controllerDelayMs / outputDelayMs) before play().
 import { getAssetUrl } from './mediaUrls.js'
 import { DEFAULT_AUDIO_SETTINGS, effectiveVolume, normalizeAudioSettings } from './audioSettings.js'
 import { applySink, makeTestToneUrl } from './audioDevices.js'
@@ -23,8 +25,9 @@ export function createAudioEngine(options = {}) {
   const role = options.role === 'output' ? 'output' : 'controller'
   let settings = normalizeAudioSettings(options.settings ?? DEFAULT_AUDIO_SETTINGS)
 
-  let music = null // { assetId, el, paused, ready, sinkReady }
+  let music = null // current track: { assetId, el, paused, ready } (ready = play() may be called)
   let musicToken = 0
+  let musicPlayer = null // persistent { el, sinkReady, cancelSeek }, created on first use
   const sfx = new Map() // assetId -> { el, token, playing, url, sinkReady }
   const listeners = new Set()
   let test = null // { el, sinkReady }
@@ -32,6 +35,19 @@ export function createAudioEngine(options = {}) {
 
   const enabled = () => (role === 'output' ? settings.outputAudio : settings.controllerAudio)
   const sinkId = () => (role === 'output' ? settings.outputSinkId : settings.controllerSinkId)
+  const delayMs = () => (role === 'output' ? settings.outputDelayMs : settings.controllerDelayMs)
+
+  // Runs fn after this window's sync delay, if still current. Delay 0 calls straight through.
+  const afterDelay = (isCurrent, fn) => {
+    const ms = delayMs()
+    if (!ms) {
+      fn()
+      return
+    }
+    setTimeout(() => {
+      if (isCurrent()) fn()
+    }, ms)
+  }
 
   // Muted elements still play, so state and timing stay consistent if the flag changes mid-show.
   const configure = (el, channel) => {
@@ -116,6 +132,30 @@ export function createAudioEngine(options = {}) {
 
   // ---- music ----
 
+  // One element for every track: it keeps its device routing, so a new track starts without a setSinkId.
+  // Its listeners are attached once and always read the CURRENT entry.
+  const getMusicPlayer = () => {
+    if (musicPlayer) return musicPlayer
+    const el = new Audio()
+    el.loop = true
+    el.preload = 'auto'
+    musicPlayer = { el, sinkReady: route(el), cancelSeek: null }
+    // el.paused checks filter out stale events queued by an earlier stop or pause.
+    el.addEventListener('play', () => {
+      if (music && music.paused && !el.paused) {
+        music.paused = false
+        emit()
+      }
+    })
+    el.addEventListener('pause', () => {
+      if (music && music.ready && !music.paused && el.paused) {
+        music.paused = true
+        emit()
+      }
+    })
+    return musicPlayer
+  }
+
   const playMusic = (entry, token) => {
     entry.el.play().catch((err) => {
       // AbortError = interrupted by our own pause/stop/src change.
@@ -130,10 +170,10 @@ export function createAudioEngine(options = {}) {
 
   const musicStop = () => {
     musicToken++
+    if (musicPlayer?.cancelSeek) musicPlayer.cancelSeek()
     if (!music) return
-    const entry = music
     music = null
-    disposeElement(entry.el)
+    disposeElement(musicPlayer.el) // keeps the element and its device
     emit()
   }
 
@@ -141,57 +181,56 @@ export function createAudioEngine(options = {}) {
   const musicStart = (assetId, position = 0) => {
     musicStop()
     const token = musicToken
-    const el = new Audio()
-    el.loop = true
-    el.preload = 'auto'
+    const player = getMusicPlayer()
+    const el = player.el
     configure(el, 'music')
-    const entry = { assetId, el, paused: false, ready: false, sinkReady: route(el) }
+    const entry = { assetId, el, paused: false, ready: false }
     music = entry
-    el.addEventListener('play', () => {
-      if (music === entry && entry.paused) {
-        entry.paused = false
-        emit()
-      }
-    })
-    el.addEventListener('pause', () => {
-      if (music === entry && entry.ready && !entry.paused) {
-        entry.paused = true
-        emit()
-      }
-    })
     emit()
 
+    const isCurrent = () => token === musicToken && music === entry
+    // First play after the (optional) sync delay. A pause during the wait is respected.
+    const startPlaying = () =>
+      afterDelay(isCurrent, () => {
+        entry.ready = true
+        if (!entry.paused) playMusic(entry, token)
+      })
+
     const seekTo = Number(position)
-    Promise.all([getAssetUrl(assetId), entry.sinkReady]).then(([url]) => {
-      if (token !== musicToken || music !== entry) return
+    Promise.all([getAssetUrl(assetId), player.sinkReady]).then(([url]) => {
+      if (!isCurrent()) return
       if (!url) {
         musicStop()
         report(MISSING)
         return
       }
       if (Number.isFinite(seekTo) && seekTo > 0) {
-        const onMeta = () => {
+        const cleanup = () => {
+          el.removeEventListener('loadedmetadata', onMeta)
           el.removeEventListener('error', onFail)
-          if (token !== musicToken || music !== entry) return
+          if (player.cancelSeek === cleanup) player.cancelSeek = null
+        }
+        const onMeta = () => {
+          cleanup()
+          if (!isCurrent()) return
           const d = el.duration
           el.currentTime = Number.isFinite(d) && d > 0 ? seekTo % d : seekTo
-          entry.ready = true
-          if (!entry.paused) playMusic(entry, token)
+          startPlaying()
         }
         const onFail = () => {
-          el.removeEventListener('loadedmetadata', onMeta)
-          if (token !== musicToken || music !== entry) return
+          cleanup()
+          if (!isCurrent()) return
           musicStop()
           reportPlayError(null, assetId)
         }
-        el.addEventListener('loadedmetadata', onMeta, { once: true })
-        el.addEventListener('error', onFail, { once: true })
+        player.cancelSeek = cleanup
+        el.addEventListener('loadedmetadata', onMeta)
+        el.addEventListener('error', onFail)
         el.src = url
         return
       }
       el.src = url
-      entry.ready = true
-      if (!entry.paused) playMusic(entry, token)
+      startPlaying()
     })
   }
 
@@ -206,8 +245,15 @@ export function createAudioEngine(options = {}) {
 
   const musicResume = () => {
     if (!music || !music.paused) return
-    music.paused = false
-    if (music.ready) playMusic(music, musicToken)
+    const entry = music
+    entry.paused = false
+    if (entry.ready) {
+      const token = musicToken
+      afterDelay(
+        () => token === musicToken && music === entry && !entry.paused,
+        () => playMusic(entry, token),
+      )
+    }
     emit()
   }
 
@@ -251,13 +297,30 @@ export function createAudioEngine(options = {}) {
         entry.el.src = url
         entry.url = url
       }
-      entry.el.currentTime = 0
-      entry.el.play().catch((err) => {
-        if (token !== entry.token || err?.name === 'AbortError') return
-        entry.playing = false
-        emit()
-        reportPlayError(err, assetId)
-      })
+      afterDelay(
+        () => token === entry.token,
+        () => {
+          entry.el.currentTime = 0
+          entry.el.play().catch((err) => {
+            if (token !== entry.token || err?.name === 'AbortError') return
+            entry.playing = false
+            emit()
+            reportPlayError(err, assetId)
+          })
+        },
+      )
+    })
+  }
+
+  // Creates the routed element and loads the file without playing, so the first press is fast.
+  const warmSfx = (assetId) => {
+    if (typeof assetId !== 'string' || !assetId) return
+    const entry = sfxEntry(assetId)
+    getAssetUrl(assetId).then((url) => {
+      if (url && entry.url !== url) {
+        entry.el.src = url
+        entry.url = url
+      }
     })
   }
 
@@ -288,7 +351,7 @@ export function createAudioEngine(options = {}) {
     for (const entry of sfx.values()) configure(entry.el, 'sfx')
     if (test) test.el.volume = settings.master
     if (sinkId() !== prevSink) {
-      if (music) music.sinkReady = route(music.el)
+      if (musicPlayer) musicPlayer.sinkReady = route(musicPlayer.el)
       for (const entry of sfx.values()) entry.sinkReady = route(entry.el)
       if (test) test.sinkReady = route(test.el)
     }
@@ -310,12 +373,17 @@ export function createAudioEngine(options = {}) {
       if (entry.el.getAttribute('src') !== url) entry.el.src = url
       entry.el.muted = false
       entry.el.volume = settings.master
-      entry.el.currentTime = 0
-      entry.el.play().catch((err) => {
-        if (token !== testToken || err?.name === 'AbortError') return
-        if (err?.name === 'NotAllowedError') report(role === 'output' ? BLOCKED_OUTPUT : BLOCKED_CONTROLLER)
-        else report('Could not play the test sound.')
-      })
+      afterDelay(
+        () => token === testToken,
+        () => {
+          entry.el.currentTime = 0
+          entry.el.play().catch((err) => {
+            if (token !== testToken || err?.name === 'AbortError') return
+            if (err?.name === 'NotAllowedError') report(role === 'output' ? BLOCKED_OUTPUT : BLOCKED_CONTROLLER)
+            else report('Could not play the test sound.')
+          })
+        },
+      )
     })
   }
 
@@ -339,6 +407,7 @@ export function createAudioEngine(options = {}) {
     musicResume,
     sfxPlay,
     sfxStop,
+    warmSfx,
     stopAll,
     applySettings,
     getMusicPosition,

@@ -76,3 +76,9 @@ Adding and deleting an asset touch both stores in a single transaction. Keyboard
 - HELLO recovery (usePlayback restoreOutput), in order: SETTINGS, PRELOAD, playbackState.video = null (image kept), SHOW_IMAGE for the kept image, MUSIC_START { assetId, position } if the controller's music is playing (not paused), STATUS_REQUEST.
 - Disconnect: after a connected->disconnected flip, one error toast "Output window disconnected. Reopen it from the Dashboard; ..." after a 1.5 s grace period (an output F5 reconnects within it, so no toast). Open Output Window reuses/focuses the "roleplay-output" window; a blocked pop-up shows an error toast.
 
+## Sync (5.1)
+- Each AudioEngine has ONE persistent music element (created lazily, routed once, listeners attached once and reading the current entry). musicStart reuses it; stop = pause + removeAttribute('src') + load(), keeping the element and its device. It is re-routed only when the sink id changes; every start still awaits its sinkReady promise.
+- warmSfx(assetId) creates the routed sfx element and sets its src without playing. usePlayback warms all play-sfx mapped assets locally and sends their ids as PRELOAD { sfx: [ids] }; the output warms them too.
+- Delay compensation: settings controllerDelayMs / outputDelayMs (0..1000 ms, whole ms, default 0; UI slider 0..500 step 10). The window's delay is waited (setTimeout, token re-checked) before the first play() of a music start, a music resume, an sfx play and the test tone. Delay 0 adds no timer. A stop or newer command during the wait cancels the play. Video is never delayed; a rejoining output's seek happens before the delay.
+- "Test both together" (Audio Settings, Sync card) plays the test tone locally and sends CMD.TEST_TONE at the same moment.
+

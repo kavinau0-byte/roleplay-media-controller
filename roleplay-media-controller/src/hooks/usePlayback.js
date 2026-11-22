@@ -34,14 +34,20 @@ function mappedAssets(mappings, assets) {
   return assets.filter((a) => ids.has(a.id)).map((a) => ({ id: a.id, type: a.type }))
 }
 
+// Asset ids mapped to play-sfx (and still in the library): their elements are pre-warmed.
+function sfxAssetIds(mappings, assets) {
+  const existing = new Set(assets.map((a) => a.id))
+  return mappings.filter((m) => m.action === 'play-sfx' && existing.has(m.assetId)).map((m) => m.assetId)
+}
+
 export function usePlaybackState() {
   return useSyncExternalStore(playbackState.subscribe, playbackState.getSnapshot)
 }
 
 // Output opened or reloaded: its screen is black and its audio is silent. Restore it.
-function restoreOutput(audio, preloadAssets) {
+function restoreOutput(audio, preload) {
   sendCommand(CMD.SETTINGS, { settings: loadAudioSettings() })
-  sendCommand(CMD.PRELOAD, { assets: preloadAssets })
+  sendCommand(CMD.PRELOAD, preload)
   playbackState.set({ video: null })
   const { image } = playbackState.getSnapshot()
   if (image) sendCommand(CMD.SHOW_IMAGE, { assetId: image.assetId })
@@ -56,7 +62,7 @@ function restoreOutput(audio, preloadAssets) {
 export default function usePlayback(assets, mappings, connected) {
   const audio = getControllerAudio()
   const toast = useToast()
-  const preloadRef = useRef([])
+  const preloadRef = useRef({ assets: [], sfx: [] }) // last CMD.PRELOAD payload
   const wasConnectedRef = useRef(false)
 
   useEffect(() => {
@@ -123,10 +129,12 @@ export default function usePlayback(assets, mappings, connected) {
 
   useEffect(() => {
     const list = mappedAssets(mappings, assets)
-    preloadRef.current = list
+    const sfx = sfxAssetIds(mappings, assets)
+    preloadRef.current = { assets: list, sfx }
     try {
       audio.preload(list.filter((a) => a.type === 'audio').map((a) => a.id))
-      sendCommand(CMD.PRELOAD, { assets: list })
+      for (const id of sfx) audio.warmSfx(id)
+      sendCommand(CMD.PRELOAD, { assets: list, sfx })
     } catch {
       // best effort
     }

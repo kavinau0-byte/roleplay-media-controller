@@ -7,18 +7,21 @@ import useToast from './useToast.js'
 
 // Show-time key handling for the controller window. Call once (in App).
 // Keys come from this window's keydown and from the output window (MSG.KEY).
-export default function useKeyboard(mappings, assets) {
+// ctx: { outputConnected, audio } (passed to runAction).
+export default function useKeyboard(mappings, assets, ctx) {
   const [lastTriggered, setLastTriggered] = useState(null)
   const toast = useToast()
 
   const mappingsRef = useRef(mappings)
   const assetsRef = useRef(assets)
   const toastRef = useRef(toast)
+  const ctxRef = useRef(ctx)
   useLayoutEffect(() => {
     mappingsRef.current = mappings
     assetsRef.current = assets
     toastRef.current = toast
-  }, [mappings, assets, toast])
+    ctxRef.current = ctx
+  }, [mappings, assets, toast, ctx])
 
   useEffect(() => {
     // Returns true if the code was mapped (and handled).
@@ -32,11 +35,9 @@ export default function useKeyboard(mappings, assets) {
       if (active && (active.tagName === 'BUTTON' || active.tagName === 'A')) active.blur()
 
       const asset = mapping.assetId ? assetsRef.current.find((a) => a.id === mapping.assetId) : null
-      const result = runAction(mapping, asset)
+      const result = runAction(mapping, asset, { ...ctxRef.current, assets: assetsRef.current })
       setLastTriggered({ code, summary: result.summary, ok: result.ok, at: Date.now() })
-      const text = `${keyLabel(code)}: ${result.summary}`
-      if (result.ok) toastRef.current.success(text)
-      else toastRef.current.error(text)
+      if (!result.ok) toastRef.current.error(`${keyLabel(code)}: ${result.summary}`)
       return true
     }
 

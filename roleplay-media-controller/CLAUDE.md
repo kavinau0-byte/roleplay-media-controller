@@ -44,4 +44,23 @@ Adding and deleting an asset touch both stores in a single transaction. Keyboard
 - Suspension is a counter in src/engine/KeyboardEngine.js: suspendKeyboard() returns an idempotent release(). The preview modal and key capture (src/hooks/useKeyCapture.js) each hold one while active.
 - Pruning: App removes mappings whose asset no longer exists, but ONLY when the library finished loading without error (a failed load must never wipe mappings).
 - ToastProvider wraps <App /> in src/main.jsx (controller only), so useToast works inside App.
-- src/engine/dispatch.js runAction(mapping, asset) only reports what would happen in Phase 3; Phase 4 implements real playback there.
+- src/engine/dispatch.js runAction(mapping, asset, ctx) performs the action (see Playback). Errors show a toast; successes only update "Last key pressed".
+
+## Playback (Phase 4)
+- The controller is the brain. src/engine/dispatch.js decides and sends EXPLICIT commands (never "toggle") to the output over BroadcastChannel; payloads carry asset IDs only.
+- Protocol (src/engine/commands.js): MSG.CMD (controller -> output, payload { name, ...args }): SHOW_VIDEO {assetId, seq}, SHOW_IMAGE {assetId}, CLEAR_DISPLAY, MUSIC_START {assetId}, MUSIC_STOP, MUSIC_PAUSE, MUSIC_RESUME, SFX_PLAY {assetId}, SFX_STOP, STOP_ALL, SETTINGS {settings}, PRELOAD {assets:[{id,type}]}. MSG.EVENT (output -> controller): VIDEO_ENDED {assetId, seq}, ERROR {message}. On MSG.HELLO the controller resends SETTINGS and PRELOAD and resets its screen state (the output starts black).
+- Engine modules:
+  - mediaUrls.js: per-window cache of object URLs (getAssetUrl dedupes in-flight loads, null if the blob is missing; revokeAll).
+  - audioSettings.js: localStorage "rmc.audio.v1" { master, music, sfx, video (0..1), controllerAudio, outputAudio }; effectiveVolume = master * channel.
+  - AudioEngine.js: createAudioEngine({ role, settings, onError, getAssetName }); one looping music element, one reusable element per sfx. Each window has its own instance (module-level singleton, StrictMode safe).
+  - playbackState.js: controller-only external store (video, image, music, sfxCount) for the Dashboard "Now playing" card.
+  - Hooks: usePlayback (controller engine, EVENT handling, preload), useAudioSettings (persist + apply + send SETTINGS).
+- Behaviour rules:
+  - Video and images show only in the output. Video sound plays only in the output.
+  - A video ending returns to the base image (last shown image) or black. Showing an image stops a playing video.
+  - clear-display clears the screen only (music/sfx keep playing). stop-all stops video, music and sfx and clears the screen.
+  - Display actions fail with "Output window is not connected" when the output is closed. Audio actions and stop-all still work locally.
+  - play-music toggles: if that track is the controller's current music it sends MUSIC_STOP, otherwise MUSIC_START (which replaces any current track). sfx restart from 0 on repeat press; different sfx overlap.
+  - Audio plays in BOTH windows through the same engine. controllerAudio / outputAudio mute that window's music/sfx (elements keep playing muted so state stays consistent). Video volume = master * video and is not affected by the two flags.
+  - Races: every async step (blob load, image decode, play()) checks a monotonically increasing token and aborts if superseded. VIDEO_ENDED carries the seq of the video so a stale end event never clears a newer video.
+- Known limitation: an output window opened (or reloaded) mid-song does not join the running music; the next music command syncs it.

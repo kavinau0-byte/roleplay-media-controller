@@ -1,4 +1,28 @@
 import StatusIndicator from '../components/StatusIndicator.jsx'
+import { usePlaybackState } from '../hooks/usePlayback.js'
+
+function NowPlaying() {
+  const { video, image, music, sfxCount } = usePlaybackState()
+  const screen = video ? `Video: ${video.name}` : image ? `Image: ${image.name}` : 'Black'
+  const rows = [
+    { label: 'Screen', value: screen },
+    { label: 'Music', value: music ? `${music.name} (${music.paused ? 'Paused' : 'Playing'})` : 'None' },
+    { label: 'Sound effects', value: sfxCount > 0 ? `${sfxCount} playing` : 'None' },
+  ]
+  return (
+    <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4">
+      <h2 className="text-sm font-semibold text-neutral-100">Now playing</h2>
+      <dl className="mt-3 grid grid-cols-[7rem_1fr] gap-x-3 gap-y-1.5 text-sm">
+        {rows.map((r) => (
+          <div key={r.label} className="contents">
+            <dt className="text-neutral-500">{r.label}</dt>
+            <dd className="truncate text-neutral-200">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  )
+}
 
 const STEPS = [
   'Click "Open Output Window".',
@@ -30,6 +54,8 @@ export default function Dashboard({ connected, counts, shortcutCount, onOpenOutp
           </div>
         ))}
       </div>
+
+      <NowPlaying />
 
       <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-5">
         <div className="flex items-center justify-between gap-4">

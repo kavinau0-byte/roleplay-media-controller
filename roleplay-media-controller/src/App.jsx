@@ -4,10 +4,13 @@ import { PAGES } from './utils/pages.js'
 import Dashboard from './pages/Dashboard.jsx'
 import MediaLibrary from './pages/MediaLibrary.jsx'
 import KeyboardMappings from './pages/KeyboardMappings.jsx'
+import AudioSettings from './pages/AudioSettings.jsx'
 import useAssets from './hooks/useAssets.js'
+import useAudioSettings from './hooks/useAudioSettings.js'
 import useKeyboard from './hooks/useKeyboard.js'
 import useMappings from './hooks/useMappings.js'
 import useOutputStatus from './hooks/useOutputStatus.js'
+import usePlayback from './hooks/usePlayback.js'
 
 function openOutput() {
   const win = window.open(
@@ -29,7 +32,9 @@ export default function App() {
   const connected = useOutputStatus()
   const library = useAssets()
   const keyboard = useMappings()
-  const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets)
+  const { audio } = usePlayback(library.assets, keyboard.mappings)
+  const audioSettings = useAudioSettings(audio)
+  const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets, { outputConnected: connected, audio })
   const current = PAGES.find((p) => p.id === page)
 
   // Drop mappings for deleted assets. Only when the library loaded successfully:
@@ -57,6 +62,8 @@ export default function App() {
         lastTriggered={lastTriggered}
       />
     )
+  } else if (page === 'audio') {
+    content = <AudioSettings settings={audioSettings.settings} onChange={audioSettings.update} />
   } else {
     content = <Placeholder title={current?.label ?? page} />
   }

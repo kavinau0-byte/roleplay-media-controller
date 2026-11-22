@@ -22,7 +22,7 @@ const SMALL_BUTTON =
 function TestPad({ lastTriggered }) {
   return (
     <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4">
-      <div className={HEADING}>Test pad</div>
+      <div className={HEADING}>Last key pressed</div>
       <div className="mt-3 flex min-h-8 items-center gap-3 text-sm">
         {lastTriggered ? (
           <>
@@ -35,7 +35,7 @@ function TestPad({ lastTriggered }) {
         )}
       </div>
       <div className="mt-2 text-xs text-neutral-600">
-        Playback arrives in Phase 4; for now pressing a mapped key only reports what would happen.
+        Shows the last mapped key and what it did.
       </div>
     </div>
   )

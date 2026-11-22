@@ -9,6 +9,8 @@ export const MSG = Object.freeze({
   HELLO: 'HELLO',
   BYE: 'BYE',
   KEY: 'KEY',
+  CMD: 'CMD', // controller -> output, payload { name, ...args }
+  EVENT: 'EVENT', // output -> controller, payload { name, ...args }
 })
 
 let channel = null

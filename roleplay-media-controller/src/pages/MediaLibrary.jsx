@@ -13,7 +13,7 @@ const FILTERS = [
   { id: 'audio', label: 'Audio' },
 ]
 
-export default function MediaLibrary({ assets, loading, error, addFiles, rename, remove, removeAll }) {
+export default function MediaLibrary({ assets, loading, error, addFiles, rename, remove, removeAll, keyFor }) {
   const [filter, setFilter] = useState('all')
   const [previewAsset, setPreviewAsset] = useState(null)
   const [storage, setStorage] = useState(null)
@@ -121,6 +121,7 @@ export default function MediaLibrary({ assets, loading, error, addFiles, rename,
             <MediaCard
               key={asset.id}
               asset={asset}
+              mapping={keyFor(asset.id)}
               onPreview={setPreviewAsset}
               onRename={handleRename}
               onDelete={handleDelete}

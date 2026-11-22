@@ -1,10 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Sidebar from './components/Sidebar.jsx'
 import { PAGES } from './utils/pages.js'
 import Dashboard from './pages/Dashboard.jsx'
 import MediaLibrary from './pages/MediaLibrary.jsx'
-import ToastProvider from './components/Toast.jsx'
+import KeyboardMappings from './pages/KeyboardMappings.jsx'
 import useAssets from './hooks/useAssets.js'
+import useKeyboard from './hooks/useKeyboard.js'
+import useMappings from './hooks/useMappings.js'
 import useOutputStatus from './hooks/useOutputStatus.js'
 
 function openOutput() {
@@ -26,26 +28,43 @@ export default function App() {
   const [page, setPage] = useState('dashboard')
   const connected = useOutputStatus()
   const library = useAssets()
+  const keyboard = useMappings()
+  const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets)
   const current = PAGES.find((p) => p.id === page)
+
+  // Drop mappings for deleted assets. Only when the library loaded successfully:
+  // an empty list from a failed load must never wipe the mappings.
+  const { prune } = keyboard
+  useEffect(() => {
+    if (library.loading || library.error) return
+    prune(library.assets.map((a) => a.id))
+  }, [library.loading, library.error, library.assets, prune])
 
   const counts = { video: 0, image: 0, audio: 0 }
   for (const a of library.assets) counts[a.type] = (counts[a.type] ?? 0) + 1
 
   let content
   if (page === 'dashboard') {
-    content = <Dashboard connected={connected} counts={counts} onOpenOutput={openOutput} />
+    content = <Dashboard connected={connected} counts={counts} shortcutCount={keyboard.count} onOpenOutput={openOutput} />
   } else if (page === 'media') {
-    content = <MediaLibrary {...library} />
+    content = <MediaLibrary {...library} keyFor={keyboard.keyFor} />
+  } else if (page === 'mappings') {
+    content = (
+      <KeyboardMappings
+        assets={library.assets}
+        loading={library.loading}
+        keyboard={keyboard}
+        lastTriggered={lastTriggered}
+      />
+    )
   } else {
     content = <Placeholder title={current?.label ?? page} />
   }
 
   return (
-    <ToastProvider>
-      <div className="flex h-full">
-        <Sidebar page={page} onNavigate={setPage} />
-        <main className="flex-1 overflow-y-auto p-6">{content}</main>
-      </div>
-    </ToastProvider>
+    <div className="flex h-full">
+      <Sidebar page={page} onNavigate={setPage} />
+      <main className="flex-1 overflow-y-auto p-6">{content}</main>
+    </div>
   )
 }

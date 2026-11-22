@@ -34,3 +34,14 @@ IndexedDB database "roleplay-media" (version 1), accessed only through src/stora
 - "assets": metadata only, safe to list. { id, name, type ('video'|'image'|'audio'), mimeType, size (bytes), description, duration (seconds or null), createdAt (ms timestamp) }.
 - "blobs": { id, blob }. The file data, read only when a specific asset is needed (preview/playback). Never load blobs for listing.
 Adding and deleting an asset touch both stores in a single transaction. Keyboard mappings will be stored separately in Phase 3 (not inside asset records).
+
+## Keyboard mappings
+- Stored in localStorage key "rmc.mappings.v1" as a JSON array of { code, action, assetId } (code = KeyboardEvent.code; assetId null for global actions). Owned by src/hooks/useMappings.js; invalid entries are dropped on load, and missing/invalid JSON falls back to defaults (Escape -> clear-display, Backquote -> stop-all).
+- Actions (src/engine/actions.js): asset actions play-video (video), show-image (image), play-music (audio, loops, toggles on repeat press), play-sfx (audio, one-shot, restarts on repeat press); global actions clear-display, stop-all, stop-music, pause-music, resume-music, stop-sfx.
+- Reserved keys (src/utils/keyLabels.js isReservedCode): KeyF (output fullscreen), F5, F11, F12, Tab, ContextMenu, and modifier/lock keys (Shift, Control, Alt, Meta, CapsLock, NumLock, ScrollLock, Fn).
+- Rules: one mapping per key; each asset and each global action has at most one key. Assigning a new key to a target that already has one moves it. Assigning a key used by a different target returns a conflict; replace() overwrites it.
+- Show keys are handled by src/hooks/useKeyboard.js (one capture-phase window keydown listener plus MSG.KEY from the output window, called once in App). Ignored: repeats, Ctrl/Meta/Alt combos, typing in input/textarea/select/contentEditable. Unmapped keys are never preventDefault-ed. The output window does not forward Ctrl/Meta/Alt combos.
+- Suspension is a counter in src/engine/KeyboardEngine.js: suspendKeyboard() returns an idempotent release(). The preview modal and key capture (src/hooks/useKeyCapture.js) each hold one while active.
+- Pruning: App removes mappings whose asset no longer exists, but ONLY when the library finished loading without error (a failed load must never wipe mappings).
+- ToastProvider wraps <App /> in src/main.jsx (controller only), so useToast works inside App.
+- src/engine/dispatch.js runAction(mapping, asset) only reports what would happen in Phase 3; Phase 4 implements real playback there.

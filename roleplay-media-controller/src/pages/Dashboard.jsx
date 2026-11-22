@@ -7,12 +7,12 @@ const STEPS = [
   'Click back on this controller window and start the show.',
 ]
 
-export default function Dashboard({ connected, counts, onOpenOutput }) {
+export default function Dashboard({ connected, counts, shortcutCount, onOpenOutput }) {
   const stats = [
     { label: 'Videos', value: counts.video },
     { label: 'Images', value: counts.image },
     { label: 'Audio files', value: counts.audio },
-    { label: 'Shortcuts', value: 0 }, // Phase 3
+    { label: 'Shortcuts', value: shortcutCount },
   ]
 
   return (

@@ -33,7 +33,8 @@ export default function OutputWindow() {
       setActivated(true)
       if (event.code === 'KeyF') {
         toggleFullscreen()
-      } else {
+      } else if (!event.ctrlKey && !event.metaKey && !event.altKey) {
+        // Browser shortcuts like Ctrl+R must not fire the mapping on R.
         send(MSG.KEY, { code: event.code })
       }
     }

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { getAssetBlob } from '../storage/IndexedDB.js'
+import { suspendKeyboard } from '../engine/KeyboardEngine.js'
 
 const MEDIA_ERROR_MESSAGE = "This file can't be played in this browser. Re-export videos as MP4 (H.264 + AAC) and audio as MP3."
 const IMAGE_ERROR_MESSAGE = "This image can't be displayed in this browser."
@@ -61,6 +62,9 @@ export default function PreviewModal({ asset, onClose }) {
       if (objectUrl) URL.revokeObjectURL(objectUrl)
     }
   }, [asset.id, asset.type, asset.mimeType])
+
+  // Show keys are off while previewing, so Escape only closes the modal.
+  useEffect(() => suspendKeyboard(), [])
 
   useEffect(() => {
     const onKey = (e) => {

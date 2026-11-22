@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import KeyCap from './KeyCap.jsx'
+import { getAction } from '../engine/actions.js'
 import { formatBytes, formatDuration } from '../utils/mediaHelpers.js'
 
 const BADGE_STYLES = {
@@ -9,7 +11,7 @@ const BADGE_STYLES = {
 
 const ACTION = 'rounded px-2 py-1 text-xs text-neutral-400 hover:bg-neutral-800 hover:text-neutral-100'
 
-export default function MediaCard({ asset, onPreview, onRename, onDelete }) {
+export default function MediaCard({ asset, mapping, onPreview, onRename, onDelete }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(asset.name)
 
@@ -34,7 +36,11 @@ export default function MediaCard({ asset, onPreview, onRename, onDelete }) {
         >
           {asset.type.toUpperCase()}
         </span>
-        <span className="rounded border border-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-600">No key</span>
+        {mapping ? (
+          <KeyCap code={mapping.code} label={getAction(mapping.action)?.label} />
+        ) : (
+          <span className="rounded border border-neutral-800 px-1.5 py-0.5 text-[10px] text-neutral-600">No key</span>
+        )}
       </div>
 
       {editing ? (

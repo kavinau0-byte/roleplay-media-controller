@@ -6,6 +6,7 @@ import MediaLibrary from './pages/MediaLibrary.jsx'
 import KeyboardMappings from './pages/KeyboardMappings.jsx'
 import AudioSettings from './pages/AudioSettings.jsx'
 import PresentationMode from './pages/PresentationMode.jsx'
+import BackupStorage from './pages/BackupStorage.jsx'
 import useAssets from './hooks/useAssets.js'
 import useAudioSettings from './hooks/useAudioSettings.js'
 import useKeyboard from './hooks/useKeyboard.js'
@@ -82,6 +83,17 @@ export default function App() {
         onChange={audioSettings.update}
         audio={audio}
         outputConnected={connected}
+      />
+    )
+  } else if (page === 'backup') {
+    content = (
+      <BackupStorage
+        assets={library.assets}
+        mappings={keyboard.mappings}
+        audioSettings={audioSettings.settings}
+        replaceMappings={keyboard.replaceAll}
+        updateAudioSettings={audioSettings.update}
+        refreshLibrary={library.refresh}
       />
     )
   } else if (page === 'presentation') {

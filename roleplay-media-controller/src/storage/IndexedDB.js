@@ -75,6 +75,17 @@ export async function addAsset(file, meta = {}) {
   })
 }
 
+// Restore helper: inserts an asset with a GIVEN id (metadata + blob in one transaction).
+// Rejects (ConstraintError) if the id already exists, so existing assets are never overwritten.
+export async function addAssetWithId(record, blob) {
+  const db = await getDB()
+  return withQuotaCheck(async () => {
+    const tx = db.transaction([ASSETS, BLOBS], 'readwrite')
+    await Promise.all([tx.objectStore(ASSETS).add(record), tx.objectStore(BLOBS).add({ id: record.id, blob }), tx.done])
+    return record
+  })
+}
+
 export async function listAssets() {
   const db = await getDB()
   const all = await db.getAll(ASSETS)

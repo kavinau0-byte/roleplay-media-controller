@@ -114,6 +114,17 @@ export default function useMappings() {
 
   const restoreDefaults = useCallback(() => update(() => DEFAULT_MAPPINGS), [update])
 
+  // Replaces every mapping (used by restore). Runs the same validation as loading, so malformed,
+  // duplicate-key and duplicate-target entries are dropped. Returns the number kept.
+  const replaceAll = useCallback(
+    (list) => {
+      const next = validate(list) ?? []
+      update(() => next)
+      return next.length
+    },
+    [update],
+  )
+
   // Removes mappings whose asset no longer exists. Returns the same array if nothing changed.
   const prune = useCallback(
     (validAssetIds) => {
@@ -140,6 +151,7 @@ export default function useMappings() {
     removeByCode,
     removeForAsset,
     restoreDefaults,
+    replaceAll,
     prune,
     keyFor,
     keyForAction,

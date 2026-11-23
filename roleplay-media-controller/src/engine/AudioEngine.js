@@ -13,6 +13,9 @@ const BLOCKED_CONTROLLER = 'The browser blocked sound in the controller window. 
 const MISSING = 'Media file missing'
 const DEVICE_MISSING = 'Audio device not available. Using the system default instead.'
 
+// Final catch for fire-and-forget chains: a bug in a callback must never become an unhandled rejection.
+const ignore = () => {}
+
 function disposeElement(el) {
   el.pause()
   el.removeAttribute('src')
@@ -231,7 +234,7 @@ export function createAudioEngine(options = {}) {
       }
       el.src = url
       startPlaying()
-    })
+    }).catch(ignore)
   }
 
   const getMusicPosition = () => (music?.ready ? music.el.currentTime || 0 : 0)
@@ -309,7 +312,7 @@ export function createAudioEngine(options = {}) {
           })
         },
       )
-    })
+    }).catch(ignore)
   }
 
   // Creates the routed element and loads the file without playing, so the first press is fast.
@@ -321,7 +324,7 @@ export function createAudioEngine(options = {}) {
         entry.el.src = url
         entry.url = url
       }
-    })
+    }).catch(ignore)
   }
 
   const sfxStop = () => {
@@ -384,7 +387,7 @@ export function createAudioEngine(options = {}) {
           })
         },
       )
-    })
+    }).catch(ignore)
   }
 
   // For elements the engine does not own (the output window's <video>).

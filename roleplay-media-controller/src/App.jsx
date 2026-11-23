@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard.jsx'
 import MediaLibrary from './pages/MediaLibrary.jsx'
 import KeyboardMappings from './pages/KeyboardMappings.jsx'
 import AudioSettings from './pages/AudioSettings.jsx'
+import PresentationMode from './pages/PresentationMode.jsx'
 import useAssets from './hooks/useAssets.js'
 import useAudioSettings from './hooks/useAudioSettings.js'
 import useKeyboard from './hooks/useKeyboard.js'
@@ -27,7 +28,8 @@ export default function App() {
   const toast = useToast()
   const { audio } = usePlayback(library.assets, keyboard.mappings, connected)
   const audioSettings = useAudioSettings(audio)
-  const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets, { outputConnected: connected, audio })
+  const actionCtx = { outputConnected: connected, audio } // shared by show keys and panic buttons
+  const { lastTriggered } = useKeyboard(keyboard.mappings, library.assets, actionCtx)
   const current = PAGES.find((p) => p.id === page)
 
   // Drop mappings for deleted assets. Only when the library loaded successfully:
@@ -82,8 +84,25 @@ export default function App() {
         outputConnected={connected}
       />
     )
+  } else if (page === 'presentation') {
+    content = (
+      <PresentationMode
+        mappings={keyboard.mappings}
+        assets={library.assets}
+        connected={connected}
+        lastTriggered={lastTriggered}
+        ctx={actionCtx}
+        onOpenOutput={openOutput}
+        onNavigate={setPage}
+      />
+    )
   } else {
     content = <Placeholder title={current?.label ?? page} />
+  }
+
+  // Presentation Mode takes the whole window (no sidebar, no page padding).
+  if (page === 'presentation') {
+    return <main className="h-full overflow-y-auto">{content}</main>
   }
 
   return (

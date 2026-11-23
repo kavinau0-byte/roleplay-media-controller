@@ -3,10 +3,15 @@ import { isGlobalAction, isKnownAction } from '../engine/actions.js'
 
 const STORAGE_KEY = 'rmc.mappings.v1'
 
-const DEFAULT_MAPPINGS = [
+export const DEFAULT_MAPPINGS = [
   { code: 'Escape', action: 'clear-display', assetId: null },
   { code: 'Backquote', action: 'stop-all', assetId: null },
 ]
+
+// True for one of the built-in default mappings (same key and action).
+export function isDefaultMapping(m) {
+  return DEFAULT_MAPPINGS.some((d) => d.code === m.code && d.action === m.action)
+}
 
 // A "target" is what a key points at: an asset, or a global action.
 function targetOf(m) {

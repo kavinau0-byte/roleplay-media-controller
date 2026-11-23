@@ -160,7 +160,7 @@ export default function OutputWindow() {
         else
           getAssetUrl(a.id).then((url) => {
             if (url && a.type === 'image') decodeImage(url)
-          })
+          }).catch(() => {})
       }
     }
 
@@ -185,10 +185,10 @@ export default function OutputWindow() {
     const handleCommand = (cmd) => {
       switch (cmd?.name) {
         case CMD.SHOW_VIDEO:
-          showVideo(cmd)
+          showVideo(cmd).catch(() => {})
           break
         case CMD.SHOW_IMAGE:
-          showImage(cmd)
+          showImage(cmd).catch(() => {})
           break
         case CMD.CLEAR_DISPLAY:
           clearDisplay()
